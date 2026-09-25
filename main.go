@@ -66,7 +66,7 @@ func main() {
 
 // 1. Home Page: Login link
 func handleHome(w http.ResponseWriter, r *http.Request) {
-	html := `<h1>Welcome</h1><a href="/login">Login with GitHub (Gmail required)</a>`
+	html := `<h1>Welcome</h1><a href="/login">Login with GitHub (Octopus Deploy employees)</a>`
 	w.Header().Set("Content-Type", "text/html")
 	fmt.Fprint(w, html)
 }
@@ -100,9 +100,9 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// AUTHORIZATION CHECK: Must end in @gmail.com
-	if !strings.HasSuffix(strings.ToLower(email), "@gmail.com") {
-		http.Error(w, fmt.Sprintf("Access Denied: Your email (%s) is not a @gmail.com address.", email), http.StatusForbidden)
+	// AUTHORIZATION CHECK: Must end in @octopus.com
+	if !strings.HasSuffix(strings.ToLower(email), "@octopus.com") {
+		http.Error(w, fmt.Sprintf("Access Denied: Your email (%s) is not a @octopus.com address.", email), http.StatusForbidden)
 		return
 	}
 
