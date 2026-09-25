@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -62,8 +64,13 @@ func main() {
 	http.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("web/assets"))))
 	http.HandleFunc("/style.css", handleStyle)
 
-	log.Println("Server running on http://localhost:8080")
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	log.Printf("Server running on http://localhost:%s", port)
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
 
 // 1. Home Page: Login link
@@ -77,14 +84,47 @@ func handleStyle(w http.ResponseWriter, r *http.Request) {
 
 // 2. Redirect user to GitHub OAuth
 func handleLogin(w http.ResponseWriter, r *http.Request) {
-	// "state" helps prevent CSRF attacks (use a random string in production)
-	url := oauthConfig.AuthCodeURL("random-csrf-state")
+	// "state" helps prevent CSRF attacks: a random value tied to this session,
+	// checked against the value GitHub echoes back in handleCallback
+	state, err := generateStateToken()
+	if err != nil {
+		http.Error(w, "Failed to generate state", http.StatusInternalServerError)
+		return
+	}
+
+	session, _ := store.Get(r, "app-session")
+	session.Values["oauth_state"] = state
+	if err := session.Save(r, w); err != nil {
+		http.Error(w, "Failed to save session", http.StatusInternalServerError)
+		return
+	}
+
+	url := oauthConfig.AuthCodeURL(state)
 	http.Redirect(w, r, url, http.StatusTemporaryRedirect)
+}
+
+func generateStateToken() (string, error) {
+	b := make([]byte, 32)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return base64.URLEncoding.EncodeToString(b), nil
 }
 
 // 3. GitHub redirects back here
 func handleCallback(w http.ResponseWriter, r *http.Request) {
 	ctx := context.Background()
+
+	session, _ := store.Get(r, "app-session")
+	expectedState, _ := session.Values["oauth_state"].(string)
+	delete(session.Values, "oauth_state")
+	session.Save(r, w)
+
+	if expectedState == "" || r.URL.Query().Get("state") != expectedState {
+		http.Error(w, "Invalid or missing state parameter", http.StatusForbidden)
+		return
+	}
+
 	code := r.URL.Query().Get("code")
 
 	// Exchange temporary code for access token (JSON response under the hood)
@@ -118,7 +158,6 @@ func handleCallback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Store ONLY the username in a session cookie (Discard the GitHub token)
-	session, _ := store.Get(r, "app-session")
 	session.Values["username"] = username
 	session.Save(r, w)
 
