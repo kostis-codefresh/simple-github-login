@@ -59,6 +59,8 @@ func main() {
 	http.HandleFunc("/callback", handleCallback)
 	http.HandleFunc("/dashboard", handleDashboard)
 	http.HandleFunc("/logout", handleLogout)
+	http.Handle("/assets/", http.StripPrefix("/assets/", http.FileServer(http.Dir("web/assets"))))
+	http.HandleFunc("/style.css", handleStyle)
 
 	log.Println("Server running on http://localhost:8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
@@ -66,9 +68,11 @@ func main() {
 
 // 1. Home Page: Login link
 func handleHome(w http.ResponseWriter, r *http.Request) {
-	html := `<h1>Welcome</h1><a href="/login">Login with GitHub (Octopus Deploy employees)</a>`
-	w.Header().Set("Content-Type", "text/html")
-	fmt.Fprint(w, html)
+	http.ServeFile(w, r, "web/login.html")
+}
+
+func handleStyle(w http.ResponseWriter, r *http.Request) {
+	http.ServeFile(w, r, "web/style.css")
 }
 
 // 2. Redirect user to GitHub OAuth
